@@ -5,7 +5,7 @@ mod impl_core;
 mod impl_tuples;
 mod impls;
 
-use self::read::{BorrowReader, Reader};
+use self::read::{BorrowReader, BytesReader, Reader};
 use crate::{
     config::{Config, InternalLimitConfig},
     error::DecodeError,
@@ -97,12 +97,26 @@ pub trait BorrowDecode<'de>: Sized {
     fn borrow_decode<D: BorrowDecoder<'de>>(decoder: &mut D) -> Result<Self, DecodeError>;
 }
 
+/// proof of concept
+pub trait BytesDecode: Sized {
+    /// Attempt to decode this type with the given [BorrowDecode].
+    fn bytes_decode<D: BytesDecoder>(decoder: &mut D) -> Result<Self, DecodeError>;
+}
+
 /// Helper macro to implement `BorrowDecode` for any type that implements `Decode`.
 #[macro_export]
 macro_rules! impl_borrow_decode {
     ($ty:ty) => {
         impl<'de> $crate::BorrowDecode<'de> for $ty {
             fn borrow_decode<D: $crate::de::BorrowDecoder<'de>>(
+                decoder: &mut D,
+            ) -> core::result::Result<Self, $crate::error::DecodeError> {
+                $crate::Decode::decode(decoder)
+            }
+        }
+
+        impl $crate::BytesDecode for $ty {
+            fn bytes_decode<D: $crate::de::BytesDecoder>(
                 decoder: &mut D,
             ) -> core::result::Result<Self, $crate::error::DecodeError> {
                 $crate::Decode::decode(decoder)
@@ -213,6 +227,15 @@ pub trait BorrowDecoder<'de>: Decoder {
 
     /// Rerturns a mutable reference to the borrow reader
     fn borrow_reader(&mut self) -> &mut Self::BR;
+}
+
+/// Proof of concept
+pub trait BytesDecoder: Decoder {
+    /// The concrete [BorrowReader] type
+    type BR: BytesReader;
+
+    /// Rerturns a mutable reference to the borrow reader
+    fn bytes_reader(&mut self) -> &mut Self::BR;
 }
 
 impl<'a, T> Decoder for &'a mut T

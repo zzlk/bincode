@@ -145,6 +145,25 @@ fn test_slice() {
 }
 
 #[test]
+fn test_bytes() {
+    use bytes::Bytes;
+    use bytes::BytesMut;
+
+    let mut buffer = BytesMut::from([0u8; 32].as_slice());
+    let input = BytesMut::from_iter([1, 2, 3, 4, 5, 6, 7]).freeze();
+    bincode::encode_into_slice(input.clone(), &mut buffer, bincode::config::standard()).unwrap();
+    let buffer = buffer.freeze();
+    assert_eq!(&buffer[..8], &[7, 1, 2, 3, 4, 5, 6, 7]);
+
+    let (output, len): (Bytes, usize) =
+        bincode::bytes_decode_from_bytes(buffer.clone(), bincode::config::standard()).unwrap();
+
+    assert_eq!(input, output);
+    assert_eq!(len, 8);
+    buffer.slice_ref(&output); // This proves that buffer and output are the same Bytes allocation.
+}
+
+#[test]
 fn test_option_slice() {
     let mut buffer = [0u8; 32];
     let input: Option<&[u8]> = Some(&[1, 2, 3, 4, 5, 6, 7]);

@@ -1,6 +1,7 @@
 #![cfg(feature = "derive")]
 
 use bincode::error::DecodeError;
+use bytes::{Bytes, BytesMut};
 
 #[derive(bincode::Encode, PartialEq, Debug)]
 pub(crate) struct Test<T> {
@@ -400,6 +401,33 @@ fn test_enum_with_generics_roundtrip() {
         bincode::decode_from_slice(&slice[..bytes_written], bincode::config::standard())
             .unwrap()
             .0;
+    assert_eq!(start, decoded);
+}
+
+#[derive(bincode::Encode, bincode::BytesDecode, PartialEq, Debug, Eq)]
+pub struct TestWithBytes {
+    bytes1: Bytes,
+    bytes2: Bytes,
+}
+
+#[test]
+fn test_bytes_roundtrip() {
+    let start = TestWithBytes {
+        bytes1: Bytes::from_static(&[1]),
+        bytes2: Bytes::from_static(&[2]),
+    };
+    let mut slice = BytesMut::from([0u8; 10].as_slice());
+    let bytes_written =
+        bincode::encode_into_slice(&start, &mut slice, bincode::config::standard()).unwrap();
+    let slice = slice.freeze();
+    assert_eq!(&slice[..bytes_written], &[1, 1, 1, 2]);
+
+    let decoded: TestWithBytes = bincode::bytes_decode_from_bytes(
+        slice.slice_ref(&slice[..bytes_written]),
+        bincode::config::standard(),
+    )
+    .unwrap()
+    .0;
     assert_eq!(start, decoded);
 }
 

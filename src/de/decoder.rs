@@ -1,6 +1,6 @@
 use super::{
-    read::{BorrowReader, Reader},
-    BorrowDecoder, Decoder,
+    read::{BorrowReader, BytesReader, Reader},
+    BorrowDecoder, BytesDecoder, Decoder,
 };
 use crate::{config::Config, error::DecodeError, utils::Sealed};
 
@@ -43,6 +43,14 @@ impl<'de, R: BorrowReader<'de>, C: Config> BorrowDecoder<'de> for DecoderImpl<R,
     type BR = R;
 
     fn borrow_reader(&mut self) -> &mut Self::BR {
+        &mut self.reader
+    }
+}
+
+impl<R: BytesReader, C: Config> BytesDecoder for DecoderImpl<R, C> {
+    type BR = R;
+
+    fn bytes_reader(&mut self) -> &mut Self::BR {
         &mut self.reader
     }
 }

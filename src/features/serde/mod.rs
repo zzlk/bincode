@@ -56,10 +56,12 @@
 //! [Encode]: ../enc/trait.Encode.html
 
 mod de_borrowed;
+mod de_bytes;
 mod de_owned;
 mod ser;
 
 pub use self::de_borrowed::*;
+pub use self::de_bytes::*;
 pub use self::de_owned::*;
 pub use self::ser::*;
 
@@ -240,6 +242,35 @@ where
 }
 
 impl<T> crate::Encode for BorrowCompat<T>
+where
+    T: serde::Serialize,
+{
+    fn encode<E: crate::enc::Encoder>(
+        &self,
+        encoder: &mut E,
+    ) -> Result<(), crate::error::EncodeError> {
+        let serializer = ser::SerdeEncoder { enc: encoder };
+        self.0.serialize(serializer)?;
+        Ok(())
+    }
+}
+
+/// proof of concept
+pub struct BytesCompat<T>(pub T);
+
+impl<T> crate::de::BytesDecode for BytesCompat<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    fn bytes_decode<D: crate::de::BytesDecoder>(
+        decoder: &mut D,
+    ) -> Result<Self, crate::error::DecodeError> {
+        let serde_decoder = de_bytes::SerdeDecoder { de: decoder };
+        T::deserialize(serde_decoder).map(BytesCompat)
+    }
+}
+
+impl<T> crate::Encode for BytesCompat<T>
 where
     T: serde::Serialize,
 {

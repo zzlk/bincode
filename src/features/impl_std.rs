@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    de::{read::Reader, BorrowDecode, BorrowDecoder, Decode, Decoder, DecoderImpl},
+    de::{read::Reader, BorrowDecode, BorrowDecoder, BytesDecode, Decode, Decoder, DecoderImpl},
     enc::{write::Writer, Encode, Encoder, EncoderImpl},
     error::{DecodeError, EncodeError},
     impl_borrow_decode,

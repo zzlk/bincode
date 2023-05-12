@@ -12,6 +12,7 @@
 //! [BorrowDecode]: ../trait.BorrowDecode.html
 
 use crate::error::DecodeError;
+use bytes::{Buf, Bytes};
 
 /// A reader for owned data. See the module documentation for more information.
 pub trait Reader {
@@ -59,15 +60,33 @@ pub trait BorrowReader<'storage>: Reader {
     fn take_bytes(&mut self, length: usize) -> Result<&'storage [u8], DecodeError>;
 }
 
+/// proof of concept
+pub trait BytesReader: Reader {
+    /// proof of concept
+    fn get_bytes(&mut self, length: usize) -> Result<Bytes, DecodeError>;
+}
+
 /// A reader type for `&[u8]` slices. Implements both [Reader] and [BorrowReader], and thus can be used for borrowed data.
 pub struct SliceReader<'storage> {
     pub(crate) slice: &'storage [u8],
+}
+
+/// proof of concept
+pub struct BytesBytesReader {
+    pub(crate) bytes: Bytes,
 }
 
 impl<'storage> SliceReader<'storage> {
     /// Constructs a slice reader
     pub fn new(bytes: &'storage [u8]) -> SliceReader<'storage> {
         SliceReader { slice: bytes }
+    }
+}
+
+impl BytesBytesReader {
+    /// Constructs a bytes reader
+    pub fn new(bytes: Bytes) -> BytesBytesReader {
+        BytesBytesReader { bytes }
     }
 }
 
@@ -97,6 +116,30 @@ impl<'storage> Reader for SliceReader<'storage> {
     }
 }
 
+impl Reader for BytesBytesReader {
+    #[inline(always)]
+    fn read(&mut self, bytes: &mut [u8]) -> Result<(), DecodeError> {
+        if bytes.len() > self.bytes.len() {
+            return Err(DecodeError::UnexpectedEnd {
+                additional: bytes.len() - self.bytes.len(),
+            });
+        }
+        bytes.copy_from_slice(&self.bytes.split_to(bytes.len()));
+
+        Ok(())
+    }
+
+    #[inline]
+    fn peek_read(&mut self, n: usize) -> Option<&[u8]> {
+        self.bytes.get(..n)
+    }
+
+    #[inline]
+    fn consume(&mut self, n: usize) {
+        self.bytes.advance(n);
+    }
+}
+
 impl<'storage> BorrowReader<'storage> for SliceReader<'storage> {
     #[inline(always)]
     fn take_bytes(&mut self, length: usize) -> Result<&'storage [u8], DecodeError> {
@@ -108,5 +151,17 @@ impl<'storage> BorrowReader<'storage> for SliceReader<'storage> {
         let (read_slice, remaining) = self.slice.split_at(length);
         self.slice = remaining;
         Ok(read_slice)
+    }
+}
+
+impl BytesReader for BytesBytesReader {
+    #[inline(always)]
+    fn get_bytes(&mut self, length: usize) -> Result<Bytes, DecodeError> {
+        if length > self.bytes.len() {
+            return Err(DecodeError::UnexpectedEnd {
+                additional: length - self.bytes.len(),
+            });
+        }
+        Ok(self.bytes.split_to(length))
     }
 }

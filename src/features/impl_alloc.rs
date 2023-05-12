@@ -6,7 +6,7 @@ use crate::{
         Encode, Encoder,
     },
     error::{DecodeError, EncodeError},
-    impl_borrow_decode, BorrowDecode, Config,
+    impl_borrow_decode, BorrowDecode, BytesDecode, Config,
 };
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;

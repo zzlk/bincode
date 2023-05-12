@@ -103,3 +103,36 @@ fn derive_borrow_decode_inner(input: TokenStream) -> Result<TokenStream> {
     generator.export_to_file("bincode", "BorrowDecode");
     generator.finish()
 }
+
+#[proc_macro_derive(BytesDecode, attributes(bincode))]
+pub fn derive_bytes_decode(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    derive_bytes_decode_inner(input).unwrap_or_else(|e| e.into_token_stream())
+}
+
+fn derive_bytes_decode_inner(input: TokenStream) -> Result<TokenStream> {
+    let parse = Parse::new(input)?;
+    let (mut generator, attributes, body) = parse.into_generator();
+    let attributes = attributes
+        .get_attribute::<ContainerAttributes>()?
+        .unwrap_or_default();
+
+    match body {
+        Body::Struct(body) => {
+            derive_struct::DeriveStruct {
+                fields: body.fields,
+                attributes,
+            }
+            .generate_bytes_decode(&mut generator)?;
+        }
+        Body::Enum(body) => {
+            derive_enum::DeriveEnum {
+                variants: body.variants,
+                attributes,
+            }
+            .generate_bytes_decode(&mut generator)?;
+        }
+    }
+
+    generator.export_to_file("bincode", "BytesDecode");
+    generator.finish()
+}

@@ -96,9 +96,10 @@ pub mod enc;
 pub mod error;
 
 pub use atomic::*;
-pub use de::{BorrowDecode, Decode};
+pub use de::{BorrowDecode, BytesDecode, Decode};
 pub use enc::Encode;
 
+use bytes::Bytes;
 use config::Config;
 
 /// Encode the given value into the given slice. Returns the amount of bytes that have been written.
@@ -161,6 +162,19 @@ pub fn borrow_decode_from_slice<'a, D: de::BorrowDecode<'a>, C: Config>(
     let mut decoder = de::DecoderImpl::<_, C>::new(reader, config);
     let result = D::borrow_decode(&mut decoder)?;
     let bytes_read = src.len() - decoder.reader().slice.len();
+    Ok((result, bytes_read))
+}
+
+/// proof of concept
+pub fn bytes_decode_from_bytes<D: de::BytesDecode, C: Config>(
+    src: Bytes,
+    config: C,
+) -> Result<(D, usize), error::DecodeError> {
+    let len = src.len();
+    let reader = de::read::BytesBytesReader::new(src);
+    let mut decoder = de::DecoderImpl::<_, C>::new(reader, config);
+    let result = D::bytes_decode(&mut decoder)?;
+    let bytes_read = len - decoder.reader().bytes.len();
     Ok((result, bytes_read))
 }
 

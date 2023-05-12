@@ -25,14 +25,19 @@ description = "A binary serialization / deserialization strategy for transformin
 edition = "2021"
 
 [features]
-default = ["std", "derive"]
+default = ["std", "derive", "serde"]
 std = ["alloc", "serde?/std"]
 alloc = ["serde?/alloc"]
 derive = ["bincode_derive"]
 
+[patch.crates-io]
+serde = { package = "serde", rev = "72fa9b09a78cb019dc918c3ce829cdfbc9cd96aa", git = "https://github.com/zzlk/serde.git", default-features = false, optional = true }
+serde_derive = { package = "serde_derive", rev = "72fa9b09a78cb019dc918c3ce829cdfbc9cd96aa", git = "https://github.com/zzlk/serde.git", default-features = false, optional = true }
+
 [dependencies]
 bincode_derive = { path = "derive", version = "2.0.0-rc.3", optional = true }
-serde = { version = "1.0", default-features = false, optional = true }
+serde = { package = "serde", rev = "72fa9b09a78cb019dc918c3ce829cdfbc9cd96aa", git = "https://github.com/zzlk/serde.git", default-features = false, optional = true }
+bytes = "1.4.0"
 
 # Used for tests
 [dev-dependencies]
@@ -45,7 +50,6 @@ uuid = { version = "1.1", features = ["serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 glam = { version = "0.21", features = ["serde"] }
 bincode_1 = { version = "1.3", package = "bincode" }
-serde = { version = "1.0", features = ["derive"] }
 
 [[bench]]
 name = "varint"

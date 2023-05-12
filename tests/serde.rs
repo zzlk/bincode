@@ -3,7 +3,10 @@
 extern crate alloc;
 
 use alloc::string::String;
+use bytes::{Bytes, BytesMut};
+use serde::de::Visitor;
 use serde_derive::{Deserialize, Serialize};
+use std::error::Error;
 
 #[derive(Serialize, Deserialize, bincode::Encode, bincode::Decode)]
 pub struct SerdeRoundtrip {
@@ -139,6 +142,74 @@ fn test_serialize_deserialize_owned_data() {
         output
     );
     assert_eq!(len, 13);
+}
+
+#[test]
+fn test_bytes_round_trip() {
+    use serde::Deserialize;
+    use serde::Serialize;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct BytesWrapper(pub Bytes);
+    impl Serialize for BytesWrapper {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            serializer.serialize_bytes(&self.0)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for BytesWrapper {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            struct V;
+            impl Visitor<'_> for V {
+                type Value = Bytes;
+
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    formatter.write_str(std::any::type_name::<Self::Value>())
+                }
+
+                fn visit_bytes_bytes<E>(self, v: Bytes) -> Result<Self::Value, E>
+                where
+                    E: Error,
+                {
+                    Ok(v)
+                }
+            }
+
+            Ok(BytesWrapper(deserializer.deserialize_bytes(V)?))
+        }
+    }
+
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+    pub struct SerdeWithOwnedData {
+        pub bytes: BytesWrapper,
+    }
+
+    let input = SerdeWithOwnedData {
+        bytes: BytesWrapper(Bytes::from_static(&[7])),
+    };
+
+    #[rustfmt::skip]
+    let expected = [
+        1,
+        7
+    ].as_slice();
+
+    let mut result = BytesMut::from_iter(&[0u8; 20]);
+    let len = bincode::serde::encode_into_slice(&input, &mut result, bincode::config::standard())
+        .unwrap();
+    let result = result.split_to(len).freeze();
+    assert_eq!(result, expected);
+
+    let (output, len): (SerdeWithOwnedData, usize) =
+        bincode::serde::decode_from_bytes(result.clone(), bincode::config::standard()).unwrap();
+    assert_eq!(input, output);
+    assert_eq!(len, 2);
 }
 
 #[cfg(feature = "derive")]

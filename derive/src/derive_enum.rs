@@ -403,6 +403,104 @@ impl DeriveEnum {
             })?;
         Ok(())
     }
+
+    pub fn generate_bytes_decode(self, generator: &mut Generator) -> Result<()> {
+        let crate_name = self.attributes.crate_name.as_str();
+
+        // Remember to keep this mostly in sync with generate_borrow_decode
+
+        let enum_name = generator.target_name().to_string();
+
+        generator
+            .impl_for(format!("{}::BytesDecode", crate_name))
+            .modify_generic_constraints(|generics, where_constraints| {
+                if let Some((bounds, lit)) = (self.attributes.decode_bounds.as_ref()).or(self.attributes.bounds.as_ref()) {
+                    where_constraints.clear();
+                    where_constraints.push_parsed_constraint(bounds).map_err(|e| e.with_span(lit.span()))?;
+                } else {
+                    for g in generics.iter_generics() {
+                        where_constraints.push_constraint(g, format!("{}::BytesDecode", crate_name))?;
+                    }
+                }
+                Ok(())
+            })?
+            .generate_fn("bytes_decode")
+            .with_generic_deps("__D", [format!("{}::de::BytesDecoder", crate_name)])
+            .with_arg("decoder", "&mut __D")
+            .with_return_type(format!("core::result::Result<Self, {}::error::DecodeError>", crate_name))
+            .body(|fn_builder| {
+                if self.variants.is_empty() {
+                    fn_builder.push_parsed(format!(
+                        "core::result::Result::Err({}::error::DecodeError::EmptyEnum {{ type_name: core::any::type_name::<Self>() }})",
+                        crate_name
+                    ))?;
+                } else {
+                    fn_builder
+                        .push_parsed(format!(
+                            "let variant_index = <u32 as {}::BytesDecode>::bytes_decode(decoder)?;",
+                            crate_name
+                        ))?;
+                    fn_builder.push_parsed("match variant_index")?;
+                    fn_builder.group(Delimiter::Brace, |variant_case| {
+                        for (mut variant_index, variant) in self.iter_fields() {
+                            // idx => Ok(..)
+                            if variant_index.len() > 1 {
+                                variant_case.push_parsed("x if x == ")?;
+                                variant_case.extend(variant_index);
+                            } else {
+                                variant_case.push(variant_index.remove(0));
+                            }
+                            variant_case.puncts("=>");
+                            variant_case.ident_str("Ok");
+                            variant_case.group(Delimiter::Parenthesis, |variant_case_body| {
+                                // Self::Variant { }
+                                // Self::Variant { 0: ..., 1: ... 2: ... },
+                                // Self::Variant { a: ..., b: ... c: ... },
+                                variant_case_body.ident_str("Self");
+                                variant_case_body.puncts("::");
+                                variant_case_body.ident(variant.name.clone());
+
+                                variant_case_body.group(Delimiter::Brace, |variant_body| {
+                                    if let Some(fields) = variant.fields.as_ref() {
+                                        let is_tuple = matches!(fields, Fields::Tuple(_));
+                                        for (idx, field) in fields.names().into_iter().enumerate() {
+                                            if is_tuple {
+                                                variant_body.lit_usize(idx);
+                                            } else {
+                                                variant_body.ident(field.unwrap_ident().clone());
+                                            }
+                                            variant_body.punct(':');
+                                            let attributes = field.attributes().get_attribute::<FieldAttributes>()?.unwrap_or_default();
+                                            if attributes.with_serde {
+                                                variant_body
+                                                    .push_parsed(format!(
+                                                        "<{0}::serde::BytesCompat<_> as {0}::BytesDecode>::bytes_decode(decoder)?.0,",
+                                                        crate_name
+                                                    ))?;
+                                            } else {
+                                                variant_body
+                                                    .push_parsed(format!(
+                                                        "{}::BytesDecode::bytes_decode(decoder)?,",
+                                                        crate_name
+                                                    ))?;
+                                            }
+                                        }
+                                    }
+                                    Ok(())
+                                })?;
+                                Ok(())
+                            })?;
+                            variant_case.punct(',');
+                        }
+
+                        // invalid idx
+                        self.invalid_variant_case(&enum_name, variant_case)
+                    })?;
+                }
+                Ok(())
+            })?;
+        Ok(())
+    }
 }
 
 struct EnumVariantIterator<'a> {

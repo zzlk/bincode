@@ -1,12 +1,13 @@
 use super::{
-    read::{BorrowReader, Reader},
-    BorrowDecode, BorrowDecoder, Decode, Decoder,
+    read::{BorrowReader, BytesReader, Reader},
+    BorrowDecode, BorrowDecoder, BytesDecode, BytesDecoder, Decode, Decoder,
 };
 use crate::{
     config::{Endian, IntEncoding, InternalEndianConfig, InternalIntEncodingConfig},
     error::{DecodeError, IntegerType},
     impl_borrow_decode,
 };
+use bytes::Bytes;
 use core::{
     any::TypeId,
     cell::{Cell, RefCell},
@@ -430,6 +431,14 @@ impl<'a, 'de: 'a> BorrowDecode<'de> for &'a [u8] {
         let len = super::decode_slice_len(decoder)?;
         decoder.claim_bytes_read(len)?;
         decoder.borrow_reader().take_bytes(len)
+    }
+}
+
+impl BytesDecode for Bytes {
+    fn bytes_decode<D: BytesDecoder>(decoder: &mut D) -> Result<Self, DecodeError> {
+        let len = super::decode_slice_len(decoder)?;
+        decoder.claim_bytes_read(len)?;
+        decoder.bytes_reader().get_bytes(len)
     }
 }
 

@@ -3,6 +3,7 @@ use crate::{
     config::{Endian, IntEncoding, InternalEndianConfig, InternalIntEncodingConfig},
     error::EncodeError,
 };
+use bytes::Bytes;
 use core::{
     cell::{Cell, RefCell},
     marker::PhantomData,
@@ -307,6 +308,15 @@ where
             item.encode(encoder)?;
         }
         Ok(())
+    }
+}
+
+impl Encode for Bytes {
+    fn encode<E: Encoder>(&self, encoder: &mut E) -> Result<(), EncodeError> {
+        super::encode_slice_len(encoder, self.len())?;
+
+        encoder.writer().write(self)?;
+        return Ok(());
     }
 }
 

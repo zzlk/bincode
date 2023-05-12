@@ -185,4 +185,66 @@ impl DeriveStruct {
             })?;
         Ok(())
     }
+
+    pub fn generate_bytes_decode(self, generator: &mut Generator) -> Result<()> {
+        // Remember to keep this mostly in sync with generate_borrow_decode
+        let crate_name = &self.attributes.crate_name;
+
+        generator
+            .impl_for(format!("{}::BytesDecode", crate_name))
+            .modify_generic_constraints(|generics, where_constraints| {
+                if let Some((bounds, lit)) = (self.attributes.decode_bounds.as_ref()).or(self.attributes.bounds.as_ref()) {
+                    where_constraints.clear();
+                    where_constraints.push_parsed_constraint(bounds).map_err(|e| e.with_span(lit.span()))?;
+                } else {
+                    for g in generics.iter_generics() {
+                        where_constraints.push_constraint(g, format!("{}::BytesDecode", crate_name)).unwrap();
+                    }
+                }
+                Ok(())
+            })?
+            .generate_fn("bytes_decode")
+            .with_generic_deps("__D", [format!("{}::de::BytesDecoder", crate_name)])
+            .with_arg("decoder", "&mut __D")
+            .with_return_type(format!("core::result::Result<Self, {}::error::DecodeError>", crate_name))
+            .body(|fn_body| {
+                // Ok(Self {
+                fn_body.ident_str("Ok");
+                fn_body.group(Delimiter::Parenthesis, |ok_group| {
+                    ok_group.ident_str("Self");
+                    ok_group.group(Delimiter::Brace, |struct_body| {
+                        // Fields
+                        // {
+                        //      a: bincode::Decode::decode(decoder)?,
+                        //      b: bincode::Decode::decode(decoder)?,
+                        //      ...
+                        // }
+                        if let Some(fields) = self.fields.as_ref() {
+                            for field in fields.names() {
+                                let attributes = field.attributes().get_attribute::<FieldAttributes>()?.unwrap_or_default();
+                                if attributes.with_serde {
+                                    struct_body
+                                        .push_parsed(format!(
+                                            "{1}: (<{0}::serde::BytesCompat<_> as {0}::BytesDecode>::bytes_decode(decoder)?).0,",
+                                            crate_name,
+                                            field
+                                        ))?;
+                                } else {
+                                    struct_body
+                                        .push_parsed(format!(
+                                            "{1}: {0}::BytesDecode::bytes_decode(decoder)?,",
+                                            crate_name,
+                                            field
+                                        ))?;
+                                }
+                            }
+                        }
+                        Ok(())
+                    })?;
+                    Ok(())
+                })?;
+                Ok(())
+            })?;
+        Ok(())
+    }
 }
